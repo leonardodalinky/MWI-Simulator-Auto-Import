@@ -1,8 +1,9 @@
 // ==UserScript==
 // @name         MWI Simulator Auto Import
 // @namespace    http://tampermonkey.net/
-// @version      0.1.0
-// @description  Tools for Milky Way Idle. Automatically imports set group settings from URL parameters.
+// @version      0.1.1
+// @description  Tools for Milky Way Idle Combat Simulator. Automatically imports set group settings from URL parameters. Also provides a share feature to share the current settings to online storage.
+// @homepage     https://github.com/leonardodalinky/MWI-Simulator-Auto-Import
 // @author       AyajiLin
 // @match        https://amvoidguy.github.io/MWICombatSimulatorTest/*
 // @match        https://shykai.github.io/MWICombatSimulatorTest/dist/*
@@ -10,6 +11,7 @@
 // @grant        unsafeWindow
 // @connect      api.textdb.online
 // @license      MIT
+// @run-at       document-end
 // ==/UserScript==
 
 unsafeWindow.isAlertEnabled = true;
@@ -82,6 +84,7 @@ unsafeWindow.isAlertEnabled = true;
     async function getGroupJson() {
         // Temporary disable alert
         unsafeWindow.isAlertEnabled = false;
+        document.querySelector(`a#group-combat-tab`).click();
         document.getElementById('buttonExportSet').click();
         // Get json from clipboard
         const json = await navigator.clipboard.readText().finally(() => {
@@ -177,6 +180,8 @@ unsafeWindow.isAlertEnabled = true;
     //    Share    //
     //             //
     /////////////////
+    var shareURL = "";
+
     function showShareDialog() {
         const dialog = document.getElementById('shareModal');
         if (dialog) {
@@ -213,6 +218,37 @@ unsafeWindow.isAlertEnabled = true;
         }
     }
 
+    function enableCopyButton() {
+        const button = document.getElementById('buttonCopyShareURL');
+        if (button) {
+            button.disabled = false;
+        }
+    }
+
+    function copyShareURL() {
+        navigator.clipboard.writeText(shareURL)
+            .then(() => {
+                console.log('Share URL copied to clipboard!', shareURL);
+                showSuccessMessage('Share URL copied to clipboard!');
+            })
+            .catch(error => {
+                console.error('Error copying URL to clipboard:', error);
+                showErrorMessage('Failed to copy share URL to clipboard');
+            });
+    }
+
+    function setShareURLText() {
+        // Set share URL textbox value and scroll to the end
+        const input = document.getElementById('shareURLText');
+        if (input) {
+            input.value = shareURL;
+            // Scroll to the end of the input
+            input.scrollLeft = input.scrollWidth;
+            // Set selection to the end (optional, shows cursor at end)
+            input.selectionStart = input.selectionEnd = shareURL.length;
+        }
+    }
+
     async function share2TextDB() {
         try {
             const json = await getGroupJson();
@@ -221,22 +257,13 @@ unsafeWindow.isAlertEnabled = true;
             
             // Get the current page's base URL (without query parameters)
             const baseURL = window.location.href.split('?')[0];
-            const shareURL = `${baseURL}?textdb=${response.key}`;
-            
-            navigator.clipboard.writeText(shareURL)
-                .then(() => {
-                    console.log('Share URL copied to clipboard!', shareURL);
-                    showSuccessMessage('Share URL copied to clipboard!');
-                })
-                .catch(error => {
-                    console.error('Error copying URL to clipboard:', error);
-                    showErrorMessage('Failed to copy share URL to clipboard');
-                });
+            shareURL = `${baseURL}?textdb=${response.key}`;
+            showSuccessMessage('Text saved to TextDB successfully!');
+            setShareURLText();
+            enableCopyButton();
         } catch (error) {
             console.error('Error sharing to TextDB:', error);
             showErrorMessage(error.message || 'Failed to share to TextDB');
-        } finally {
-            hideShareDialog();
         }
     }
 
@@ -251,6 +278,13 @@ unsafeWindow.isAlertEnabled = true;
                     </div>
                     <div class="modal-body">
                         <div class="container">
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="shareURLText" value="Generated Share URL To Be Here..." readonly>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="row justify-content-center">
                                 <div class="col-md-auto">
                                     <button type="button" class="btn btn-primary" id="buttonShareTextDB">TextDB</button>
@@ -259,7 +293,8 @@ unsafeWindow.isAlertEnabled = true;
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="buttonCloseShare2">关闭</button>
+                        <button type="button" class="btn btn-success" data-bs-dismiss="modal" id="buttonCopyShareURL" disabled>Copy URL/复制链接</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="buttonCloseShare2">Close/关闭</button>
                     </div>
                 </div>
             </div>
@@ -289,6 +324,7 @@ unsafeWindow.isAlertEnabled = true;
         document.getElementById('buttonCloseShare2').onclick = hideShareDialog;
         // Bind share logics
         document.getElementById('buttonShareTextDB').onclick = share2TextDB;
+        document.getElementById('buttonCopyShareURL').onclick = copyShareURL;
     }
 
     //////////////////
@@ -316,6 +352,7 @@ unsafeWindow.isAlertEnabled = true;
                 onload: function(response) {
                     if (response.status === 200) {
                         if (response.responseText) {
+                            document.querySelector(`a#group-combat-tab`).click();
                             importInputElem.value = response.responseText;
                             document.querySelector(`button#buttonImportSet`).click();
                             showSuccessMessage('Settings loaded successfully!');
